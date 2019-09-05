@@ -1,1 +1,1 @@
-All of the lab assignments anf final project for Cpt_s 360
+Lab assignments and final project for Cpt_s 360
