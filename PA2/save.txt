@@ -1,0 +1,5 @@
+D/
+D/a/
+D/a/b/
+D/a/b/newdir/
+F/file1/
