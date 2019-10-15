@@ -5,7 +5,7 @@
 
 char cmd[128];
 
-int token(char *line, char **path, int * size, char *op){
+int token(char *line, char **path, int *size, char *op){
     char *s;
     int i = 0;
     s = strtok(line, op); // first call to strtok() 
