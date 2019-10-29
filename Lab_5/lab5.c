@@ -145,7 +145,9 @@ int main(int argc, char *argv[])
     getchar();
 
     char pathname[256];
-    strcpy(pathname, argv[1]);
+    strcpy(pathname, argv[2]);
+
+    printf("pathname = %s\n", pathname);
 
     int n = tokenize(pathname);
 
