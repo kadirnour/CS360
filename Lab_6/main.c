@@ -25,7 +25,7 @@ int    nblocks, ninodes, bmap, imap, inode_start;
 char   line[256], cmd[32], pathname[256];
 
 #include "util.c"
-#include "cd_ls_pwd.c"
+#include "cmd.c"
 
 int init()
 {
@@ -125,6 +125,10 @@ int main(int argc, char *argv[ ])
        change_dir();
     if (strcmp(cmd, "pwd")==0)
        pwd(running->cwd);
+    if (strcmp(cmd, "mkdir")==0)
+       make_dir();
+    if (strcmp(cmd, "creat")==0)
+       creat_file();
 
     if (strcmp(cmd, "quit")==0)
        quit();
