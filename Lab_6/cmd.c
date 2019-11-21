@@ -4,12 +4,13 @@
 extern MINODE minode[NMINODE];
 extern MINODE *root;
 extern PROC   proc[NPROC], *running;
+extern OFT    openFileTable[NOFT];
 extern char   gpath[256];
 extern char   *name[64];
 extern int    n;
-extern int fd, dev;
-extern int nblocks, ninodes, bmap, imap, inode_start;
-extern char line[256], cmd[32], pathname[64], pathname2[64];
+extern int    gfd, dev;
+extern int    nblocks, ninodes, bmap, imap, inode_start;
+extern char   line[256], cmd[32], pathname[64], pathname2[64], readbuf[BLKSIZE];
 
 #define OWNER  000700
 #define GROUP  000070
@@ -530,6 +531,7 @@ int unlink_file()
   MINODE *mip = iget(dev, ino);
 
   if(S_ISDIR(mip->INODE.i_mode)){printf("Cant unlink a DIR\n"); iput(mip); return;}
+  if(mip->refCount > 1){printf("File is busy\n"); iput(mip); return;}
 
   strcpy(temp, pathname);
   strcpy(parent, dirname(temp));
@@ -613,6 +615,7 @@ int mychmod()
   MINODE *mip = iget(dev,ino);
 
   long mode = strtol(pathname2, NULL, 8);
+  printf("octal mode %o\n", mode);
   mip->INODE.i_mode |= mode;
 
   mip->dirty = 1;
@@ -628,4 +631,267 @@ int utime()
 
   mip->dirty = 1;
   iput(mip);
+}
+
+int truncate(MINODE *mip)
+{
+  printf("In truncate()\n");
+
+  char buf[BLKSIZE], subbuf[BLKSIZE];
+  int i, j;
+  for(i = 0; i < 12; i++){
+    if(mip->INODE.i_block[i] != 0){
+      bdalloc(dev, mip->INODE.i_block[i]);
+      mip->INODE.i_block[i] = 0;
+    }
+  }
+  if(mip->INODE.i_block[12] == 0){return;}
+  get_block(dev, mip->INODE.i_block[12], buf);
+  for(i = 0; i < 256; i++){
+    if(buf[i] != 0){
+      bdalloc(dev, buf[i]);
+      buf[i] = 0;
+    }
+  }
+  put_block(dev, mip->INODE.i_block[12], buf);
+  mip->INODE.i_block[12] = 0;
+
+  if(mip->INODE.i_block[13] == 0){return;}
+  get_block(dev, mip->INODE.i_block[13], buf);
+  for(i = 0; i < 256; i++){
+    for(j = 0; j < 256; j++)
+      if(buf[i] != 0){
+        get_block(dev, buf[i], subbuf);
+        bdalloc(dev, subbuf[i]);
+        subbuf[i] = 0;
+    }
+    put_block(dev, buf[i], subbuf);
+    bdalloc(dev, buf[i]);
+    buf[i] = 0;
+  }
+  put_block(dev, mip->INODE.i_block[13], buf);
+  mip->INODE.i_block[13] = 0;
+
+  mip->INODE.i_atime = time(0L);
+  mip->INODE.i_mtime = time(0L);
+  mip->INODE.i_size = 0;
+
+  mip->dirty = 1;
+  iput(mip);
+}
+
+int myopen()
+{
+  OFT *oftp;
+  int ino = getino(pathname), i, mode, fd, offset;
+  
+  if(!ino)
+    ino = creat_file();
+  
+  MINODE *mip = iget(dev, ino);
+
+  mode = atoi(pathname2);
+  printf("pathname2 = %s\n", pathname2);
+  printf("mode = %d\n", mode);
+  getchar();
+
+  if(!ino){printf("File doesnt exist"); iput(mip); return -1;}
+  if(!S_ISREG(mip->INODE.i_mode)){printf("Not a file\n"); iput(mip); return -1;}
+
+  //TODO: Check permissions
+  switch(mode){
+    case 0:  offset = 0;
+             break;
+    case 1:  truncate(mip);
+             offset = 0;
+             break;
+    case 2:  offset = 0;
+             break;
+    case 3:  offset = mip->INODE.i_size;
+             break;
+    default: printf("invalid mode\n"); iput(mip);
+             return -1;
+  }
+
+
+  for(i = 0; i < NFD; i++){
+    if(running->fd[i] == 0){fd = i; break;}
+    if(i == NFD - 1){printf("Out of file descriptors\n"); iput(mip); return -1;}
+  }
+
+  for(i = 0; i < NOFT; i++){
+    oftp = &openFileTable[i];
+    if (oftp->inodeptr == mip && oftp->mode != 0){printf("File open with incompatible mode\n"); iput(mip); return -1;}
+    if(oftp->refCount == 0){
+      oftp->mode = mode;
+      oftp->inodeptr = mip;
+      oftp->offset = offset;
+      oftp->refCount++;
+
+      running->fd[fd] = oftp;
+    }
+  }
+
+  if(mode == 0){mip->INODE.i_atime = time(0L);}
+  else{mip->INODE.i_atime = time(0L); mip->INODE.i_mtime = time(0L);}
+
+  mip->dirty = 1;
+  return fd;
+}
+
+int open_file(){
+  printf("opened fd = %d\n", myopen());
+}
+
+int myclose(int fd)
+{
+  if(fd > NFD || fd < 0){printf("fd out of range\n"); return -1;}
+  if(!running->fd[fd]){printf("No OFT entry at fd %d\n", fd); return -1;}
+
+  OFT *oftp = running->fd[fd];
+  running->fd[fd] = 0;
+  oftp->refCount--;
+
+  if(oftp->refCount > 0){return 0;}
+  MINODE *mip = oftp->inodeptr;
+
+  iput(mip);
+  return 0;
+}
+
+int close_file()
+{
+  int fd;
+  fd = atoi(pathname);
+  printf("fd = %d\n\n", fd);
+  getchar();
+
+  return (myclose(fd));
+}
+
+int mylseek(int fd, int position)
+{
+  if(fd > NFD || fd < 0){printf("fd out of range\n"); return -1;}
+  if(!running->fd[fd]){printf("No OFT entry at fd %d\n", fd); return -1;}
+
+  OFT *oftp = running->fd[fd];
+
+  if(position > oftp->inodeptr->INODE.i_size || position < 0){printf("Position out of range\n"); return -1;}
+  int original = oftp->offset;
+  oftp->offset = position;
+
+  return original;
+}
+
+int lseek_file()
+{
+  int fd, pos;
+  fd = atoi(pathname);
+  pos = atoi(pathname2);
+  printf("fd = %d\nn = %d\n", fd, pos);
+  getchar();
+
+  return (mylseek(fd, pos));
+}
+
+int pfd()
+{
+  int i;
+  printf("fd\tmode\t offset\t  INODE\n");
+  printf("--------------------------------------\n");
+  for(i = 0; i < NFD; i++){
+    if(running->fd[i] != 0){
+      printf("%d\t", i);
+
+      if(running->fd[i]->mode == 0)
+        printf("READ\t");
+      else if(running->fd[i]->mode == 1)
+        printf("WRITE\t");
+      else if(running->fd[i]->mode == 2)
+        printf("RW\t");
+      else
+        printf("APND\t");
+      
+      printf("%d\t",running->fd[i]->offset);
+      printf("[%d, %d]\n", running->fd[i]->inodeptr->dev, running->fd[i]->inodeptr->ino);
+    }
+  }
+}
+
+int myread(int fd, char *buf, int nb)
+{
+  char *cq = buf, indirect[BLKSIZE];
+  int blk, lbk, start, count = 0, offset = running->fd[fd]->offset, 
+      avil = running->fd[fd]->inodeptr->INODE.i_size - offset;
+  
+  while(nb && avil){
+    lbk = offset / BLKSIZE;
+    start = offset % BLKSIZE;
+
+    if(lbk < 12){
+      blk = running->fd[fd]->inodeptr->INODE.i_block[lbk];
+    }
+    else if(lbk >= 12 && lbk < 256 + 12){
+      blk = running->fd[fd]->inodeptr->INODE.i_block[12];
+      get_block(dev, blk, indirect);
+
+      blk = indirect[lbk - 12];
+    }
+    else{
+      blk = running->fd[fd]->inodeptr->INODE.i_block[13];
+      get_block(dev, blk, indirect);
+      blk = indirect[(lbk - 268) / 256];
+      get_block(dev, blk, indirect);
+
+      blk = indirect[(lbk - 268) % 256];
+    }
+
+    get_block(dev, blk, indirect);
+    char *cp = indirect + start;
+    int remain = BLKSIZE - start;
+
+    while(remain > 0){
+      *cq++ = *cp++;
+      offset++;
+      count++;
+      avil--; nb--; remain--;
+
+      if(nb <= 0 || avil <= 0) break;
+    }
+  }
+  running->fd[fd]->offset = offset;
+
+  printf("bytes read = %d\n", count);
+  printf("data read = %s\n", buf);
+
+  return count;
+}
+
+int read_file()
+{
+  int fd, nb;
+  fd = atoi(pathname);
+  nb = atoi(pathname2);
+  printf("fd = %d\nn = %d\n", fd, nb);
+  getchar();
+
+  if(fd > NFD || fd < 0){printf("fd out of range\n"); return -1;}
+  if(!running->fd[fd]){printf("No OFT entry at fd %d\n", fd); return -1;}
+
+  OFT *oftp = running->fd[fd];
+
+  if(oftp->mode != 0 && oftp->mode != 3){printf("File not opened for read\n"); return -1;}
+
+  return (myread(fd, readbuf, nb));
+}
+
+int write_file()
+{
+
+}
+
+
+int test()
+{
+
 }

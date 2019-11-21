@@ -4,12 +4,13 @@
 extern MINODE minode[NMINODE];
 extern MINODE *root;
 extern PROC   proc[NPROC], *running;
+extern OFT openFileTable[NOFT];
 
 extern char   gpath[256];
 extern char   *name[64];
 extern int    n;
 
-extern int    fd, dev;
+extern int    gfd, dev;
 extern int    nblocks, ninodes, bmap, imap, inode_start;
 extern char   line[256], cmd[32], pathname[64], pathname2[64];
 

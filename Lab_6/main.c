@@ -15,14 +15,15 @@
 MINODE minode[NMINODE];
 MINODE *root;
 PROC   proc[NPROC], *running;
+OFT    openFileTable[NOFT];
 
 char   gpath[256]; // global for tokenized components
 char   *name[64];  // assume at most 64 components in pathname
 int    n;          // number of component strings
 
-int    fd, dev;
+int    gfd, dev;
 int    nblocks, ninodes, bmap, imap, inode_start;
-char   line[256], cmd[32], pathname[64], pathname2[64];
+char   line[256], cmd[32], pathname[64], pathname2[64], readbuf[BLKSIZE];
 
 #include "util.c"
 #include "cmd.c"
@@ -32,6 +33,7 @@ int init()
   int i, j;
   MINODE *mip;
   PROC   *p;
+  OFT    *o;
 
   printf("init()\n");
 
@@ -40,7 +42,7 @@ int init()
     mip->dev = mip->ino = 0;
     mip->refCount = 0;
     mip->mounted = 0;
-    mip->mptr = 0;
+    mip->mountptr = 0;
   }
   for (i=0; i<NPROC; i++){
     p = &proc[i];
@@ -50,6 +52,13 @@ int init()
     p->status = FREE;
     for (j=0; j<NFD; j++)
       p->fd[j] = 0;
+  }
+   for (i=0; i<NOFT; i++){
+    o = &openFileTable[i];
+    o->mode = 0;
+    o->refCount = 0;
+    o->inodeptr = 0;
+    o->offset = 0;
   }
 }
 
@@ -69,10 +78,10 @@ int main(int argc, char *argv[ ])
     disk = argv[1];
 
   printf("checking EXT2 FS ....");
-  if ((fd = open(disk, O_RDWR)) < 0){
+  if ((gfd = open(disk, O_RDWR)) < 0){
     printf("open %s failed\n", disk);  exit(1);
   }
-  dev = fd;
+  dev = gfd;
   /********** read super block at 1024 ****************/
   get_block(dev, 1, buf);
   sp = (SUPER *)buf;
@@ -141,6 +150,18 @@ int main(int argc, char *argv[ ])
        mychmod();
     if(strcmp(cmd,  "utime")==0)
        utime();
+    if(strcmp(cmd,  "open")==0)
+       open_file();
+    if(strcmp(cmd,  "close")==0)
+       close_file();
+    if(strcmp(cmd,  "lseek")==0)
+       lseek_file();
+    if(strcmp(cmd,  "read")==0)
+       read_file();
+    if(strcmp(cmd,  "pfd")==0)
+       pfd();
+    if (strcmp(cmd, "test")==0)
+       test();
     if (strcmp(cmd, "quit")==0)
        quit();
   }
