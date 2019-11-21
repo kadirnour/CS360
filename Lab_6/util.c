@@ -11,7 +11,7 @@ extern int    n;
 
 extern int    fd, dev;
 extern int    nblocks, ninodes, bmap, imap, inode_start;
-extern char   line[256], cmd[32], pathname[256];
+extern char   line[256], cmd[32], pathname[64], pathname2[64];
 
 int get_block(int dev, int blk, char *buf)
 {
@@ -240,6 +240,21 @@ int decFreeInodes(int dev)
   put_block(dev, 2, buf);
 }
 
+int incFreeInodes(int dev)
+{
+  char buf[BLKSIZE];
+  // inc free inode count by 1 in SUPER and GD
+  get_block(dev, 1, buf);
+  sp = (SUPER *)buf;
+  sp->s_free_inodes_count++;
+  put_block(dev, 1, buf);
+
+  get_block(dev, 2, buf);
+  gp = (GD *)buf;
+  gp->bg_free_inodes_count++;
+  put_block(dev, 2, buf);
+}
+
 int decFreeBlocks(int dev)
 {
   char buf[BLKSIZE];
@@ -252,6 +267,21 @@ int decFreeBlocks(int dev)
   get_block(dev, 2, buf);
   gp = (GD *)buf;
   gp->bg_free_blocks_count--;
+  put_block(dev, 2, buf);
+}
+
+int incFreeBlocks(int dev)
+{
+  char buf[BLKSIZE];
+  // inc free blocks count by 1 in SUPER and GD
+  get_block(dev, 1, buf);
+  sp = (SUPER *)buf;
+  sp->s_free_blocks_count++;
+  put_block(dev, 1, buf);
+
+  get_block(dev, 2, buf);
+  gp = (GD *)buf;
+  gp->bg_free_blocks_count++;
   put_block(dev, 2, buf);
 }
 
@@ -274,6 +304,19 @@ int ialloc(int dev)
   return 0;
 }
 
+int idalloc(int dev, int ino)
+{
+  char buf[BLKSIZE];
+
+  if(ino > ninodes){ printf("ino %d out of range\n", ino); return;}
+  //read inode_bitmap block
+  get_block(dev, imap, buf);
+  clr_bit(buf, ino-1);
+
+  put_block(dev, imap, buf);
+  incFreeInodes(dev);
+}
+
 int balloc(int dev)
 {
   int i;
@@ -291,4 +334,17 @@ int balloc(int dev)
     }
   }
   return 0;
+}
+
+int bdalloc(int dev, int blk)
+{
+  char buf[BLKSIZE];
+
+  if(blk > nblocks){printf("blk %d out of range\n", blk); return;}
+  //read blk_bitmap block
+  get_block(dev, bmap, buf);
+  clr_bit(buf, blk);
+
+  put_block(dev, bmap, buf);
+  incFreeBlocks(dev);
 }

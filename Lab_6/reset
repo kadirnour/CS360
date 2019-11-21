@@ -1,0 +1,6 @@
+#!/bin/bash
+# reset file system to empty
+
+rm mydisk
+dd if=/dev/zero of=mydisk bs=1024 count=4096
+mkfs -b 1024 mydisk 4096
