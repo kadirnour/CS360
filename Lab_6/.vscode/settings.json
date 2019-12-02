@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "cstdio": "c",
+        "*.tcc": "c",
+        "type_traits": "c"
+    }
+}

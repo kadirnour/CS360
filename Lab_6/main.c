@@ -23,7 +23,7 @@ int    n;          // number of component strings
 
 int    gfd, dev;
 int    nblocks, ninodes, bmap, imap, inode_start;
-char   line[256], cmd[32], pathname[64], pathname2[64], readbuf[BLKSIZE];
+char   line[256], cmd[32], pathname[64], pathname2[64];
 
 #include "util.c"
 #include "cmd.c"
@@ -158,6 +158,12 @@ int main(int argc, char *argv[ ])
        lseek_file();
     if(strcmp(cmd,  "read")==0)
        read_file();
+    if(strcmp(cmd,  "write")==0)
+       write_file();
+    if(strcmp(cmd,  "cat")==0)
+       cat_file();
+    if(strcmp(cmd,  "cp")==0)
+       cp_file();
     if(strcmp(cmd,  "pfd")==0)
        pfd();
     if (strcmp(cmd, "test")==0)

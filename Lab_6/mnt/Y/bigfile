@@ -1,0 +1,373 @@
+<Title>360 PROJECT FILE</Title>
+<Body bgcolor="#00cccc" text="#000000">
+<H1>360 PROJECT</H1>
+<Pre>
+                    CPTS 360 PROJECT
+
+               Date Assigned: Oct 13, 2008
+
+ *****************************************************************************
+  1.   DUE and DEMO: Wednesday to Thursday in Close Week.
+       Sign up for demo time slots. Turn in a floppy disk AND a hard copy.
+  2.   May work in 2-person teams. However, a comprehensive ORAL exam will 
+       be given to EACH individual during the DEMO.  The ORAL exam score 
+       will be a major part of your FINAL grade.
+ ****************************************************************************
+
+                     A. OBJECTIVE:
+   Design and implement a Linux EXT2 file system simulator. 
+
+                     B. SPECIFICATIONS:
+1. Files:
+   Files are exactly the same as they are in the Linux file system, i.e.
+   we shall use the same EXT2 file system data structures for
+
+      SuperBlock, GroupDescriptor, Bit-maps, Inode, Directory
+
+   EXCEPTIONS:
+      Only DIR and REG file types; no SPECIAL files.
+      File size : No triple-indirect blocks.
+      
+   
+2. Disks:
+    Disks are REAL floppy disks OR "virtual disks" simulated by Linux files.  
+    Disk I/O are simulated by Linux read()/write() operations on a BLKSIZE 
+    basis. You may use Linux's, mkfs (mke2fs) to create EXT2 file systems.
+
+3. File names:
+   As in Unix, each file is identified by a pathname, e.g. /a/b/c or x/y/z.
+
+   If a pathname begins with "/",  it's relative to the / directory.
+   Otherwise, it's relative to the Current Working Directory (cwd) of the 
+   running process (see Processes below). 
+
+4. Processes:
+   Every file operation is performed by a process. A process has a unique uid and pid.
+   The simulator starts with TWO processes:
+       A process P1 with uid=0 (for SUPERUSER), and
+       A process P2 with uid=1 (for ordinary user).
+   The initial CWD of both processes are initially /
+  
+   P1 runs first. P2 is in a readyQueue, which contains ALL processes
+   that are ready to run.
+
+   All processes executes the same code (i.e. the Simulator), in which it
+
+       loop forever{
+            prompt for a command;
+            execute the command;
+       }
+ 
+   Each command is performed by the current running process. 
+   
+   Process management commands are:
+
+      switch : switch process (to run another READY process).
+
+      fork : create a child process with the SAME uid (and its own pid).
+             As in Unix, the child process shares opened files with its parent.
+
+      kill, exit: cause process to terminate.
+
+5. File System Commands and Operations:
+   Unlike Unix (Kernel), file operations will be executed as commands.
+   The required commands are listed below. LEVEL 1 is the MINIMUM requirements 
+   for passing.
+    
+              -------  LEVEL 1 ------------ 
+               mount_root;
+               mkdir, rmdir, ls, cd, pwd;
+               creat, rm;       
+               stat, chmod, touch;
+
+              -------  LEVEl 2 -------------
+               open,  close,  read,  write
+               pfd,   lseek
+               cat,   cp,     mv
+
+              -------  LEVEl 3 ------------ 
+               mount, umount,             
+               Process Management Commands 
+               File permission checking
+              -----------------------------
+      
+   Unless as noted below, all commands behave exactly the same as they do in 
+   Unix.
+ 
+      pfd   : Show the valid fd's of the current process.
+
+      write : Prompt for fd and a string of chars, then write the chars 
+              to the file and show the number of chars written.
+
+      read  : Prompt for fd and n, then read the file and DISPLAY the 
+              chars that are read.
+============================================================================
+                       SAMPLE PROGRAMS:
+                       ~cs360/samples/
+ 
+       simulator.bin: The File System Simulator for EXT2 FS. 
+                        Under Linux, use  
+                              mkfs /dev/fd0 1440
+                        to make an EXT2 FS on a FD.
+
+                    Then, run the simulator to see what I expect of YOUR work.
+============================================================================
+
+
+<Title>360 Notes</Title>
+<Body bgcolor="#00cccc" text="#000000">
+<H1>360 PROJECT HELP </H1>
+<Pre>
+                     EECS 360 PROJECT HELP #1
+    
+Given: mkfs ======> make an EXT2 file system on /dev/fd0 (or a Linux file).
+
+
+                     PROJECT ORGANIZATION
+
+1. type.h (samples/type.h file)
+          define constants, e.g. BLKSIZE, NPROC, NMINODE, NOFT, etc.
+          define types for SUPER, INODE, DIR => same as in Linux
+                
+            MOUNT ==>   ---------------------------------------
+                               dev       : disk identifier (fd number)
+                               MinodePtr : pointer to mounted Minode
+
+                               deviceName: pathname of mounted device  
+                               MinodePath: pathname of mounted Minode
+                          ---------------------------------------
+
+            MINODE ==> In_Memory Inodes = ------
+                                           INODE
+                                          -------
+                                          dev,ino
+                                          refCount
+                                          dirty
+                                          mounted
+                                          mountTablePtr
+                                          (lock:optional)
+                                           -------
+
+            OFT   ===> OpenFileTable = --------- 
+                                       mode: R|W|RW|A 
+                                       refCount
+                                       MinodePtr
+                                       offset
+                                       file's string name (optional)
+                                       -------   
+
+            PROC  ===> Process Structure = ptrs to other PROC's;
+                                           pid, ppid, 
+                                           uid;
+                                           cwd ---> currentWorkingDir
+                                           fd[NFD] = openfilePointers
+                                           -------------------------- 
+                
+2. global.c ===> Ths file defines global variables, e.g.
+                 MINODE *root;      pointer to root inode in memory.
+                 PROC   *running;   pointer to current running process.
+                 MINODE minode[100] in-memory inodes
+                 etc
+
+3. include.c ==> #include  "type.h"
+                 #include  "global.c"
+                 #include  "utility.c"
+                 #include  "mountroot.c"
+ 
+                 #include  "mkdir_creat.c"
+                 #include  "cd_ls_pwd.c"
+                 #include  "rmdir_rm.c"
+                 #include  "other_level_1.c"
+
+                 #include  "open_close_pfd.c"
+                 #include  "write.c"
+                 #include  "read.c"
+                 #include  "cat_cp_mv.c"
+
+                 #include  "mount_umount.c"
+                 #include  "fork_switch_exit.c"
+                 #include  "check_permission.c"
+
+4. main.c:
+
+   #include "include.c"
+
+   init(){ 
+           initialize the simulator system's data structures:
+                MOUNT  mountTable[10];
+                MINODE Minode[100];
+                OFT    oft[100];
+                PROC   proc[10];
+            
+           mount the rootdevice;  e.g. default to /dev/fd0
+           Run porc[0] as the current process P0  with  cwd = /;
+   }
+
+             
+   main()
+   {
+     init(); 
+     while (1){
+       print the current process ID;
+       prompt for a commandString; ===>  mkdir, creat, cd, ....
+              get paramter strings: e.g. mkdir pathaname
+
+       cmdIndex = findCommand(commandString); ===> return 0,1,2,....
+
+       switch(cmdIndex){
+           case 0: mkdir(pathname);         break;
+           case 1: creat_file(pathanme);    break;
+           .......................................
+           default: print INVALID command;
+       }
+   }
+
+       
+5. IMPLEMENT and TEST the commands in successive steps:
+
+6. utility.c:
+   This file implements the commonly used functions that are needed
+   by the commands. It is suggested that you implement the following: 
+
+(1). get_block(dev, buf, blkno);  read block to buf;
+     put_block(dev, buf, blkno);  write block from buf
+
+
+(2). Alocate/Deallocate functions:
+
+     ialloc()/ idealloc() ===> allocate/deallocate an inode
+     balloc()/ bdealloc() ===> allocate/deallocate a  file block;
+     
+     mialloc()/midealloc() ==> allocate an in memory inode 
+     falloc()/fdealloc()   ==> allocate OFTE entry.
+
+(3). ulong search(INODE *ip, char *name)
+     search a DIR inode (data blocks) for name; 
+     return ino if found, return 0 if not 
+
+(4). THE MOST FUNDAMENTAL FUNCTION IS:
+
+         ino = getino(&dev, char *pathname);
+
+     which returns the ino of pathname.  The beginning dev is either / or
+     the running proc's CWD, as in
+                if (pathname[0] == '/')
+                   dev = root->dev;
+                else
+                   dev = cwd->dev;
+    However, while traversing the pathname, dev may change to that of a 
+    mounted device.  So bring in &dev to keep track of the changes. 
+    Alternatively, you may write ino = getino(char *pathname) and use a 
+    global variable dev to record the CURRENT device number. 
+
+    Upon return from getino(), we have (dev, ino) of the file.
+
+    THIS IS SIMILAR TO YOUR showblock.c
+
+
+(5). MINODE *iget(dev, ino) ==>   Return ptr to in-memory inode=(dev,ino);
+                                  load the inode into a minode[] if necessary.
+             iput(minodePtr); ==> Release the inode;  WRITE BACK TO DISK
+                                                      IF refCount=0 and dirty.
+
+(6). Others as needed:
+
+     Given ip->inode in memory, find its parent's ino;
+
+     Given a parent ip->inode in memory, and a child stringName,
+           search for the childName.
+           search for an unused directory entry.
+
+
+
+              HOW TO GENERATE THE simulator EXECUTABLE
+
+                       METHOD 1:
+
+As shown above, main.c includes ALL the needed .c files. So
+         cc -o simulator main.c
+would generate the simulator executable. In this approach, the .h file
+can only be included ONCE. 
+
+
+                    METHOD 2: Use make
+The is the preferred method of managing a LARGE set of C programs.
+To use the make facility, you need to create a Makefile (or makefile) containing
+instructions for make to follow.  make reads the Makefile, compiles the .c 
+files (as needed) and link the .o files into an executable.
+
+NOTE: in this approach, each .c file must include the .h file and use
+      extern to declare any needed (global) variables.
+ 
+To learn more about makefile contents, read Linux's /usr/info/make.info-1, etc.
+Here, we show a makefile for the project.
+
+#            # starts a comment line, which is ignored by make
+
+# ***************************************************************************
+#                    Example Makefile
+#            Save these as Makfile or makefile Then run  make
+# ***************************************************************************
+
+# Variable H defines the head file (string)
+
+H = type.h
+
+# Variable OBJ defines the string containing .o file names
+# NOTE: this is ONE line, but splitted into several lines for easier to read
+
+OBJS = global.o alloc_dalloc.o util.o mount_umount.o mkdir_creat.o \
+       stat.o cd_ls_pwd.o rmdir_rm.o open_close.o read.o write.o \
+       cp_mv.o cs_fork.o main.o
+
+# simulator:  is a rule, which says simulator DEPENDS on $(OBJ), the (string)
+# value of the OBJ variable
+    
+simulator : $(OBJS)
+
+# This rule tell make how to generate simulator: by    cc $(OBJ s.s
+# NOTE !!! Each ACTION rule must begin with a TAB char, NOT a bunch of spaces.
+
+	cc  -o simulator $(OBJS) s.s
+
+
+# These tell make how to generate each .o file from a corresponding .c file.
+# Each .o file DEPENDs on $(H), whcih means: The .o file will be generated 
+# again if $(H) are changed. This certainly makes sense since each .c file
+# depends on the TYPEs in type.h.
+
+global.o : $(H)
+
+alloc_dalloc.o : $(H)
+
+util.o :  $(H)
+
+mount_umount.o :  $(H)
+
+mkdir_creat.o : $(H)
+
+stat.o : $(H)
+
+cd_ls_pwd.o : $(H)
+
+rmdir_rm.o : $(H)
+
+open_close.o : $(H)
+
+read.o : $(H)
+
+write.o : $(H)
+
+cp_mv.o : $(H)
+
+cs_fork.o : $(H)
+
+main.o : $(H)
+
+
+# make clean  ==>  remove the executable and all the .o files
+clean :
+	rm simulator *.o
+
+
+

@@ -302,7 +302,7 @@ int ialloc(int dev)
        return i+1;
     }
   }
-  return 0;
+  return -1;
 }
 
 int idalloc(int dev, int ino)
@@ -323,10 +323,26 @@ int balloc(int dev)
   int i;
   char buf[BLKSIZE];
 
-   // read inode_bitmap block
+   // read inode_bitmap blocks
   get_block(dev, bmap, buf);
+  int z = 0, w = 0;
+  printf("------block bitmap------\n");
+  for(i = 0; i < nblocks; i++){
+    if(tst_bit(buf, i) == 0){
+      printf("0");
+      z++;
+    }
+    else{
+      w++;
+      printf("1");
+    }
 
-  for (i=0; i < ninodes; i++){
+    if(i % 24 == 0 && i != 0){printf("\n");}
+  }
+  printf("\n0's = %d\n", z);
+  printf("1's = %d\n", w);
+
+  for (i=0; i < nblocks; i++){
     if (tst_bit(buf, i)==0){
        set_bit(buf,i);
        put_block(dev, bmap, buf);
@@ -334,7 +350,7 @@ int balloc(int dev)
        return i;
     }
   }
-  return 0;
+  return -1;
 }
 
 int bdalloc(int dev, int blk)
@@ -342,6 +358,26 @@ int bdalloc(int dev, int blk)
   char buf[BLKSIZE];
 
   if(blk > nblocks){printf("blk %d out of range\n", blk); return;}
+
+   //read inode_bitmap blocks
+  get_block(dev, bmap, buf);
+  int z = 0, w = 0 , i = 0;
+  printf("------block bitmap------\n");
+  for(i = 0; i < nblocks; i++){
+    if(tst_bit(buf, i) == 0){
+      printf("0");
+      z++;
+    }
+    else{
+      w++;
+      printf("1");
+    }
+
+    if(i % 24 == 0 && i != 0){printf("\n");}
+  }
+  printf("\n0's = %d\n", z);
+  printf("1's = %d\n", w);
+
   //read blk_bitmap block
   get_block(dev, bmap, buf);
   clr_bit(buf, blk);
