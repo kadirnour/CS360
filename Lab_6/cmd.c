@@ -1151,6 +1151,120 @@ int cp_file()
   myclose(gd);
 }
 
+int mount()
+{
+  char buf[BLKSIZE];
+  int index = 0, new_mount;
+  //1. if no parameter, display current mounted file
+
+  if(pathname[0] == 0) // show mounts call
+  {
+    for(index = 0; index < 4; index++)
+    {
+      if (mytable[index].dev != 0)
+      {
+        printf("%d: %s mounted on %s\n", mytable[index].dev - 3, mytable[index].name,  mytable[index].mount_name );
+        return 0;
+      }
+    }
+  }
+
+  if (strcmp(pathname2,"") == 0) // checkin to see if second parameter is valid
+  {
+    printf("Format: mount [filesys/source] [mount_point/destination] \n");
+    return -1;
+  }
+  // 2. check wether filesys is already mounted?
+
+  for(index = 0; index < 4; index++)
+  {
+      if(strcmp(mytable[index].mount_name, pathname) == 0)
+        {
+          printf("Device pathname Error: \"%s\" because this device has already been mounted!\n", pathname);
+          return -1;
+        }
+  }
+//if not, allocate a free Mount table entry
+
+//3. open the filesys virtual disk for RW; use fd as new dev. Read superblock to verify pathname is EXT2 FS.
+new_mount = open(pathname, O_RDWR);
+
+if(new_mount < 0)
+{
+  printf(" Failure to open the fylesys virtual Disk : %s\n", pathname);
+  return -1;
+}
+
+get_block(new_mount, 1, buf);
+
+sp = (SUPER *)buf;
+if(sp -> s_magic != SUPER_MAGIC && sp -> s_magic != 0xEF51)
+
+{
+  printf("This disk %s is not valid ", pathname);
+  close(new_mount);
+  return -1;
+}
+
+//4. Find the ino, and then the minode of pathname2/ mountpint
+MINODE *mip;
+int fd = root->dev;
+
+int ino = get_myino(&fd, pathname2);
+
+int mip = iget(fd, ino);
+
+
+//5. check mount_point is a DIR and not busy, e.g not someone cwd
+
+if(mip->INODE.i_mode != DIR_MODE)
+{
+  printf("this pathname is not a directory %s \n", pathname2);
+  return -1;
+}
+
+if (mip->refCount > 1)
+{
+  printf("Busy, someone cwd, %s \n ", pathname2);
+  return -1;
+}
+
+mip -> mounted = 1;
+mip ->mountptr = &mytable[new_mount-3];
+
+mytable[new_mount-3].dev = new_mount;
+
+mytable[new_mount-3].nblocks = sp -> s_blocks_count;
+
+mytable[new_mount-3].ninodes = sp -> s_inodes_count;
+
+get_block(new_mount, 2, buf);
+
+
+GD*gd;
+
+gd = (GD *)buf;
+mytable[new_mount-3].bmap = gd->bg_block_bitmap;
+mytable[new_mount-3].imap = gd->bg_inode_bitmap;
+mytable[new_mount-3].iblk= gd->bg_inode_table;
+mytable[new_mount-3].mounted_inode = mip;
+strcpy(mytable[new_mount-3].name, pathname);
+strcpy(mytable[new_mount-3].mount_name, pathname2);
+mip =iget(new_mount,2);
+mip ->mountptr = &mytable[new_mount-3];
+mip->mounted = 1;
+mip->mountptr->dev = new_mount;
+
+
+
+  return 0;
+}
+
+int unmount()
+{
+
+}
+
 int test()
 {
 

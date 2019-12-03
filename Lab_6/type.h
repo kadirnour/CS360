@@ -92,3 +92,5 @@ typedef struct Mount{
         char   name[256]; 
         char   mount_name[64];
 } MOUNT;
+
+extern struct Mount mytable[4];
