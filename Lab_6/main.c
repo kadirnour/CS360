@@ -16,6 +16,7 @@ MINODE minode[NMINODE];
 MINODE *root;
 PROC   proc[NPROC], *running;
 OFT    openFileTable[NOFT];
+MOUNT  mytable[4];
 
 char   gpath[256]; // global for tokenized components
 char   *name[64];  // assume at most 64 components in pathname
@@ -34,6 +35,7 @@ int init()
   MINODE *mip;
   PROC   *p;
   OFT    *o;
+  MOUNT  *mnt;
 
   printf("init()\n");
 
@@ -59,6 +61,18 @@ int init()
     o->refCount = 0;
     o->inodeptr = 0;
     o->offset = 0;
+  }
+  for (i=0; i < 4; i++){
+    mnt = &mytable[i];
+    mnt -> dev = 0;
+    mnt -> ninodes  = 0;
+    mnt -> nblocks = 0;
+    mnt -> imap = 0;
+    mnt -> bmap  = 0;
+    mnt -> iblk = 0;
+    mnt -> mounted_inode = 0;
+    strcpy(mnt -> name ,"");
+    strcpy(mnt -> mount_name ,"");
   }
 }
 
@@ -117,7 +131,7 @@ int main(int argc, char *argv[ ])
 
   //printf("hit a key to continue : "); getchar();
   while(1){
-    printf("input command : [ls|cd|pwd|mkdir|creat|rmdir|link|unlink|symlink|chmod|utime|quit] ");
+    printf("input command : [ls|cd|pwd|mkdir|creat|rmdir|link|unlink|symlink|chmod|utime|mount|quit] ");
     fgets(line, 256, stdin);
     line[strlen(line)-1] = 0;
     if (line[0]==0)
@@ -126,7 +140,7 @@ int main(int argc, char *argv[ ])
     cmd[0] = 0;
     
     sscanf(line, "%s %s %s", cmd, pathname, pathname2);
-    printf("cmd=%s pathname=%s\n", cmd, pathname);
+    printf("cmd=%s pathname=%s pathname2=%s\n", cmd, pathname, pathname2);
 
     if (strcmp(cmd, "ls")==0)
        list_file();
@@ -168,6 +182,8 @@ int main(int argc, char *argv[ ])
        pfd();
     if (strcmp(cmd, "test")==0)
        test();
+   if(strcmp(cmd,  "mount")==0)
+       mount();
     if (strcmp(cmd, "quit")==0)
        quit();
   }

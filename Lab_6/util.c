@@ -197,6 +197,15 @@ int getino(char *pathname)
       }
       iput(mip);
       mip = iget(dev, ino);
+
+      if(mip->mounted){
+        dev = mip->mountptr->dev;
+
+        iput(mip);
+        mip = iget(dev, 2);
+
+        printf("Crossed Mount Point\n");
+      }
    }
    iput(mip);
    return ino;

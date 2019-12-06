@@ -5,6 +5,7 @@ extern MINODE minode[NMINODE];
 extern MINODE *root;
 extern PROC   proc[NPROC], *running;
 extern OFT    openFileTable[NOFT];
+extern struct Mount mytable[4];
 extern char   gpath[256];
 extern char   *name[64];
 extern int    n;
@@ -51,7 +52,6 @@ int ls_file(DIR *dp)
     else
       printf("%c", t2[i]);
   }
-  printf("name = %s\n", dp->name);
   printf(" %d %d %d %s %d %s", mip->INODE.i_links_count, 
     mip->INODE.i_uid, mip->INODE.i_gid, my_time, mip->INODE.i_size, dp->name);
   
@@ -1157,6 +1157,9 @@ int mount()
   int index = 0, new_mount;
   //1. if no parameter, display current mounted file
 
+  int ino = getino(pathname2);
+  printf("ino = %d\n", ino);
+
   if(pathname[0] == 0) // show mounts call
   {
     for(index = 0; index < 4; index++)
@@ -1183,12 +1186,30 @@ int mount()
           printf("Device pathname Error: \"%s\" because this device has already been mounted!\n", pathname);
           return -1;
         }
+      
+      if(mytable[index].dev == 0)
+        break;
   }
 //if not, allocate a free Mount table entry
 
 //3. open the filesys virtual disk for RW; use fd as new dev. Read superblock to verify pathname is EXT2 FS.
+char FS[64], mnt_dir[64];
+
+
+strcpy(FS, pathname);
+strcpy(mnt_dir, pathname2);
+
+strcpy(pathname, FS);
+strcpy(pathname2, "2");
+
+
 new_mount = open(pathname, O_RDWR);
 
+strcpy(pathname, FS);
+strcpy(pathname2, mnt_dir);
+
+printf("fd = %d\n", new_mount);
+// printf("pth2 = %s\n", pathname2);
 if(new_mount < 0)
 {
   printf(" Failure to open the fylesys virtual Disk : %s\n", pathname);
@@ -1198,26 +1219,29 @@ if(new_mount < 0)
 get_block(new_mount, 1, buf);
 
 sp = (SUPER *)buf;
-if(sp -> s_magic != SUPER_MAGIC && sp -> s_magic != 0xEF51)
 
+printf("%d\n", sp -> s_magic);
+if(sp -> s_magic != SUPER_MAGIC)
 {
   printf("This disk %s is not valid ", pathname);
+  getchar();
   close(new_mount);
   return -1;
 }
 
+printf("no problem\n");
+
 //4. Find the ino, and then the minode of pathname2/ mountpint
-MINODE *mip;
-int fd = root->dev;
 
-int ino = get_myino(&fd, pathname2);
 
-int mip = iget(fd, ino);
+MINODE *mip = iget(dev, ino);
+
+printf("mip->ino = %d\n", mip->ino);
 
 
 //5. check mount_point is a DIR and not busy, e.g not someone cwd
 
-if(mip->INODE.i_mode != DIR_MODE)
+if(!S_ISDIR(mip->INODE.i_mode))
 {
   printf("this pathname is not a directory %s \n", pathname2);
   return -1;
@@ -1229,29 +1253,29 @@ if (mip->refCount > 1)
   return -1;
 }
 
-mip -> mounted = 1;
-mip ->mountptr = &mytable[new_mount-3];
+printf("index = %d\n", index);
+getchar();
 
-mytable[new_mount-3].dev = new_mount;
+mytable[index].dev = new_mount;
 
-mytable[new_mount-3].nblocks = sp -> s_blocks_count;
+mytable[index].nblocks = sp -> s_blocks_count;
 
-mytable[new_mount-3].ninodes = sp -> s_inodes_count;
-
+mytable[index].ninodes = sp -> s_inodes_count;
+put_block(new_mount, 2, buf);
 get_block(new_mount, 2, buf);
 
 
 GD*gd;
 
 gd = (GD *)buf;
-mytable[new_mount-3].bmap = gd->bg_block_bitmap;
-mytable[new_mount-3].imap = gd->bg_inode_bitmap;
-mytable[new_mount-3].iblk= gd->bg_inode_table;
-mytable[new_mount-3].mounted_inode = mip;
-strcpy(mytable[new_mount-3].name, pathname);
-strcpy(mytable[new_mount-3].mount_name, pathname2);
-mip =iget(new_mount,2);
-mip ->mountptr = &mytable[new_mount-3];
+mytable[index].bmap = gd->bg_block_bitmap;
+mytable[index].imap = gd->bg_inode_bitmap;
+mytable[index].iblk= gd->bg_inode_table;
+mytable[index].mounted_inode = mip;
+strcpy(mytable[index].name, pathname);
+strcpy(mytable[index].mount_name, pathname2);
+
+mip ->mountptr = &mytable[index];
 mip->mounted = 1;
 mip->mountptr->dev = new_mount;
 
@@ -1267,5 +1291,13 @@ int unmount()
 
 int test()
 {
-
+  int i;
+  MOUNT *mnt;
+for (i=0; i < 4; i++){
+  mnt = &mytable[i];
+  if(mnt->dev == 0){printf("No Mounted FS\n");break;}
+    printf("the device # is = %d\n", mnt -> dev);
+    printf("name = %s\n", mnt -> name);
+    printf("mount point = %s\n", mnt -> mount_name);
+  }
 }
